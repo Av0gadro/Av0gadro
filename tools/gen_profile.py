@@ -60,7 +60,7 @@ def uptime(since):
     return "%d years, %d months" % (y, m)
 
 
-def ascii_art(path, crop, cols, tone, invert):
+def ascii_art(path, crop, cols, tone, invert, gamma):
     im = Image.open(path)
     im = im.convert("RGBA") if im.mode in ("RGBA", "LA", "P") else im.convert("RGB")
     has_alpha = im.mode == "RGBA"
@@ -104,8 +104,11 @@ def ascii_art(path, crop, cols, tone, invert):
     vis = [lum(*read(x, y)[:3]) for y in range(rows) for x in range(cols)
            if read(x, y)[3] >= 128]
     vis.sort()
+    # The top percentile is clipped hard on purpose: a white shirt or a
+    # blown highlight would otherwise own the bright end of the range and
+    # push the face -- the part anyone actually looks at -- into the mud.
     lo = vis[int(len(vis) * 0.02)] if vis else 0.0
-    hi = vis[int(len(vis) * 0.98)] if vis else 1.0
+    hi = vis[int(len(vis) * 0.88)] if vis else 1.0
     span = max(1e-3, hi - lo)
 
     grid = []
@@ -116,7 +119,7 @@ def ascii_art(path, crop, cols, tone, invert):
             if a_ < 128:                # outside the cutout: leave the card bare
                 line.append((" ", "none"))
                 continue
-            v = min(1.0, max(0.0, (lum(r_, g_, b_) - lo) / span))
+            v = min(1.0, max(0.0, (lum(r_, g_, b_) - lo) / span)) ** gamma
             d = v if invert else 1 - v
             ch_ = RAMP[min(len(RAMP) - 1, int(d * (len(RAMP) - 1)))]
             # Keep the pixel's hue but re-map its brightness onto the range
@@ -200,7 +203,7 @@ def build(grid, lines, th, panel_chars):
     W = pad * 2 + art_w + gap + panel_w
     H = pad * 2 + max(art_h, panel_h)
     y_art = pad + FS + max(0.0, (panel_h - art_h) / 2)
-    y_pan = pad + FS + max(0.0, (art_h - panel_h) / 2)
+    y_pan = pad + FS
     font = ("'SFMono-Regular',Consolas,'Liberation Mono',"
             "'DejaVu Sans Mono',Menlo,monospace")
     return (
@@ -221,6 +224,9 @@ def main():
     ap.add_argument("--cols", type=int, default=46)
     ap.add_argument("--user", default="mostafa842")
     ap.add_argument("--birth", default="2005-02-01")
+    ap.add_argument("--gamma", type=float, default=1.0,
+                    help="above 1 pushes midtones down, so a dark suit or dark "
+                         "hair recedes instead of rendering as a solid block")
     ap.add_argument("--stats", action="store_true",
                     help="append live Repos/Stars/Followers rows")
     ap.add_argument("--themes", default="dark",
@@ -266,7 +272,7 @@ def main():
     ASSETS.mkdir(exist_ok=True)
     for name in [t.strip() for t in a.themes.split(",")]:
         th = THEMES[name]
-        grid = ascii_art(a.photo, crop, a.cols, th["tone"], th["invert"])
+        grid = ascii_art(a.photo, crop, a.cols, th["tone"], th["invert"], a.gamma)
         p = ASSETS / ("profile-%s.svg" % name)
         p.write_text(build(grid, lines, th, panel_chars), encoding="utf-8")
         print("  wrote %s" % p.relative_to(ROOT))

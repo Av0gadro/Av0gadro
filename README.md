@@ -48,6 +48,6 @@ where the bodies are buried.
 
 <!--
 Rebuild the card above with:
-    python tools/gen_profile.py assets/photo-cutout.png --crop 0.50,0.19,0.87,0.52 --cols 80
+    python tools/gen_profile.py assets/photo-cutout.png --crop 0.38,0.12,0.99,0.72 --cols 84
 See tools/README.md for the options and for how the cutout is made.
 -->

@@ -9,7 +9,7 @@ but it does render SVG images.
 # 1. cut the background out once (local, offline after the first model download)
 python tools/cutout.py assets/photo.jpg            # -> assets/photo-cutout.png
 # 2. build the card (this is the exact command behind the committed SVG)
-python tools/gen_profile.py assets/photo-cutout.png --crop 0.50,0.19,0.87,0.52 --cols 80
+python tools/gen_profile.py assets/photo-cutout.png --crop 0.38,0.12,0.99,0.72 --cols 84
 ```
 
 A raw photo works too, but the result is muddy: ASCII density tracks brightness,
@@ -31,15 +31,22 @@ not what you want unless you go find a much higher-contrast portrait.
 | --- | --- | --- |
 | `--crop` | `auto` | `auto` trims a cutout to its own bounding box. For a raw photo pass `L,T,R,B` fractions and tighten until `preview.txt` is mostly face and shoulders. |
 | `--cols N` | `46` | Portrait width in characters. More = finer detail and a wider card. 80 is what makes the face legible here; below ~60 it turns to mush. |
+| `--gamma N` | `1.0` | Above 1 pushes midtones down, so a dark suit recedes instead of rendering as a solid block. It costs face detail fast — 1.2 was already too much here. |
 | `--themes` | `dark` | Comma list of `dark` / `light`. |
 | `--birth YYYY-MM-DD` | `2005-02-01` | Feeds the `Uptime:` line. |
 | `--stats` | off | Appends live Repos / Stars / Followers rows, fetched from the GitHub API at build time. Off by default: a card that advertises a zero star count is worse than a card that says nothing about it. |
 | `--user` | `mostafa842` | Whose numbers `--stats` fetches. |
 
-Tuning the crop is most of the game. Include the whole torso and the face gets
-maybe fifteen characters to work with — unreadable. The committed crop is head,
-beard and collar only. Run with `--preview`, look at `assets/preview.txt`,
-adjust, repeat.
+Tuning the crop is most of the game, and it is a straight trade: the wider you
+frame, the fewer characters the face gets. The committed crop is head, shoulders
+and suit — far enough back to read as a portrait rather than a close-up — and 84
+columns is what that framing needs to stay legible. Crop tighter and you can
+drop the column count; crop wider and you must raise it. Run with `--preview`,
+look at `assets/preview.txt`, adjust, repeat.
+
+The level stretch clips the top 12% of brightness (in `ascii_art`). That is
+deliberate: the white shirt would otherwise take the bright end of the ramp and
+leave the face flat.
 
 The panel text lives in `lines = [...]` inside `main()` — plain tuples,
 `("kv", label, value)` for a row and `("rule", title)` for a section header.
