@@ -5,7 +5,7 @@ Usage:
   python tools/gen_profile.py path/to/photo.jpg --preview
 Options:
   --crop L,T,R,B   crop box as fractions of the image (default: face crop)
-  --cols N         ASCII width in characters (default 46)
+  --cols N         ASCII width in characters (default 46; 84 for the card)
 """
 import argparse
 import json
@@ -29,9 +29,19 @@ THEMES = {
                   accent="#1a7f37", head="#bf3989", dim="#59636e", tone=(30, 140), invert=True),
 }
 
-FS = 9.0          # font-size, px
-CW = FS * 0.60    # monospace advance
-LH = FS * 1.02    # line height
+# The art and the panel are sized independently on purpose. GitHub renders the
+# card at its natural width (up to ~880px of README column), so whatever font
+# size we emit is what the reader gets -- there is no zooming in. One shared
+# size forces a choice between a legible panel and a card too wide to fit, so
+# the portrait runs at a dense small size and the panel at a readable one.
+ART_FS = 7.7             # font-size of the ASCII portrait, px
+ACW = ART_FS * 0.60      # monospace advance
+ALH = ART_FS * 1.02      # line height
+
+PANEL_FS = 19.0          # font-size of the info panel, px
+PCW = PANEL_FS * 0.60
+PLH = PANEL_FS * 1.02
+PROW = 1.45         # row pitch, in line heights
 
 
 def fetch_stats(user):
@@ -82,7 +92,7 @@ def ascii_art(path, crop, cols, tone, invert, gamma):
     else:
         im = ImageEnhance.Contrast(im).enhance(1.35)
     cw, ch = im.size
-    rows = max(1, round(cols * (ch / cw) * (CW / LH)))
+    rows = max(1, round(cols * (ch / cw) * (ACW / ALH)))
     # Sharpen before the big downsample or eyes, mouth and jawline dissolve.
     im = im.filter(ImageFilter.UnsharpMask(radius=cw / cols * 0.9,
                                            percent=95, threshold=3))
@@ -145,7 +155,7 @@ def art_svg(grid, x0, y0):
     """One <text> per row; same-colour neighbours merged into a tspan run."""
     out = []
     for i, row in enumerate(grid):
-        y = y0 + i * LH
+        y = y0 + i * ALH
         spans, run, col = [], "", row[0][1]
         for ch_, c in row:
             if c != col:
@@ -156,7 +166,7 @@ def art_svg(grid, x0, y0):
         parts, x = [], x0
         for run, c in spans:
             parts.append('<tspan x="%.1f" fill="%s">%s</tspan>' % (x, c, esc(run)))
-            x += len(run) * CW
+            x += len(run) * ACW
         out.append('<text y="%.1f">%s</text>' % (y, "".join(parts)))
     return "\n".join(out)
 
@@ -164,7 +174,7 @@ def art_svg(grid, x0, y0):
 def panel_svg(lines, x0, y0, th, width_chars):
     out = []
     for i, ln in enumerate(lines):
-        y = y0 + i * (LH * 1.55)
+        y = y0 + i * (PLH * PROW)
         kind = ln[0]
         if kind == "rule":
             title = ln[1]
@@ -196,24 +206,25 @@ def panel_svg(lines, x0, y0, th, width_chars):
 def build(grid, lines, th, panel_chars):
     pad = 18.0
     gap = 26.0
-    art_w = len(grid[0]) * CW
-    panel_w = panel_chars * CW
-    art_h = len(grid) * LH
-    panel_h = len(lines) * LH * 1.55
+    art_w = len(grid[0]) * ACW
+    panel_w = panel_chars * PCW
+    art_h = len(grid) * ALH
+    panel_h = len(lines) * PLH * PROW
     W = pad * 2 + art_w + gap + panel_w
     H = pad * 2 + max(art_h, panel_h)
-    y_art = pad + FS + max(0.0, (panel_h - art_h) / 2)
-    y_pan = pad + FS
+    y_art = pad + ART_FS + max(0.0, (panel_h - art_h) / 2)
+    y_pan = pad + PANEL_FS + max(0.0, (art_h - panel_h) / 2)
     font = ("'SFMono-Regular',Consolas,'Liberation Mono',"
             "'DejaVu Sans Mono',Menlo,monospace")
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" width="%.0f" height="%.0f" '
-        'viewBox="0 0 %.0f %.0f" font-family="%s" font-size="%s">\n'
+        'viewBox="0 0 %.0f %.0f" font-family="%s">\n'
         '<rect width="100%%" height="100%%" rx="10" fill="%s" stroke="%s"/>\n'
-        '<g xml:space="preserve">\n%s\n%s\n</g>\n</svg>\n'
-        % (W, H, W, H, font, FS, th["bg"], th["stroke"],
-           art_svg(grid, pad, y_art),
-           panel_svg(lines, pad + art_w + gap, y_pan, th, panel_chars)))
+        '<g xml:space="preserve" font-size="%s">\n%s\n</g>\n'
+        '<g xml:space="preserve" font-size="%s">\n%s\n</g>\n</svg>\n'
+        % (W, H, W, H, font, th["bg"], th["stroke"],
+           ART_FS, art_svg(grid, pad, y_art),
+           PANEL_FS, panel_svg(lines, pad + art_w + gap, y_pan, th, panel_chars)))
 
 
 def main():
@@ -222,7 +233,7 @@ def main():
     ap.add_argument("--crop", default="auto",
                     help="'auto' (uses the alpha channel) or L,T,R,B fractions")
     ap.add_argument("--cols", type=int, default=46)
-    ap.add_argument("--user", default="mostafa842")
+    ap.add_argument("--user", default="Av0gadro")
     ap.add_argument("--birth", default="2005-02-01")
     ap.add_argument("--gamma", type=float, default=1.0,
                     help="above 1 pushes midtones down, so a dark suit or dark "
@@ -240,23 +251,27 @@ def main():
 
     lines = [
         ("head", "mostafa", "serag"),
+        ("kv", "Role", "Junior Penetration Tester"),
         ("kv", "OS", "Windows 11, Kali Linux"),
         ("kv", "Uptime", uptime(a.birth)),
         ("kv", "Host", "Damietta University, Egypt"),
-        ("kv", "Kernel", "B.Sc. Computers & Artificial Intelligence"),
+        ("kv", "Kernel", "B.Sc. Computer Science & AI"),
         ("kv", "IDE", "VS Code, Burp Suite, Git"),
         ("rule", "Languages"),
-        ("kv", "Programming", "JavaScript, TypeScript, Python, C++"),
-        ("kv", "Web", "Node.js, Express, React, HTML, CSS"),
+        ("kv", "Programming", "JavaScript, Python, C++"),
+        ("kv", "Web", "Node.js, Express, HTML, CSS"),
         ("kv", "Data", "MongoDB, SQL, JSON, YAML"),
         ("kv", "Real", "Arabic (native), English"),
         ("rule", "Focus"),
-        ("kv", "Security", "Web App Pentesting, OWASP Top 10"),
-        ("kv", "Building", "CypherMind - AI cybersecurity learning"),
-        ("kv", "Also", "Full-stack apps, RTL / Arabic-first UI"),
+        ("kv", "Security", "Web App Pentest, OWASP Top 10"),
+        ("kv", "Building", "CypherMind - AI security labs"),
+        ("kv", "Also", "Full-stack, Arabic-first RTL UI"),
         ("rule", "Contact"),
         ("kv", "Email", "mostafaserag700@gmail.com"),
+        ("kv", "Website", "www.mostafaserag.com"),
+        ("kv", "LinkedIn", "in/mostafaserag"),
         ("kv", "GitHub", a.user),
+        ("kv", "Instagram", "serag5378"),
     ]
     if a.stats:
         st = fetch_stats(a.user)
@@ -266,7 +281,9 @@ def main():
             ("kv", "Stars", str(st.get("stars", "-"))),
             ("kv", "Followers", str(st.get("followers", "-"))),
         ]
-    panel_chars = max((len(x[1]) + len(x[2]) + 4) if x[0] == "kv" else 46
+    # The panel's width is the card's main budget: every character here costs
+    # PCW px that the portrait cannot have. 42 is the floor the rules need.
+    panel_chars = max((len(x[1]) + len(x[2]) + 4) if x[0] == "kv" else 42
                       for x in lines)
 
     ASSETS.mkdir(exist_ok=True)
