@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Build a neofetch-style profile card SVG: colored ASCII portrait + info panel.
+"""Build a neofetch-style profile card SVG: ASCII portrait + info panel.
 
 Usage:
   python tools/gen_profile.py path/to/photo.jpg --preview
 Options:
   --crop L,T,R,B   crop box as fractions of the image (default: face crop)
-  --cols N         ASCII width in characters (default 46; 84 for the card)
+  --cols N         ASCII width in characters (default 46; 75 for the card)
+  --mono           greyscale portrait instead of colour
 """
 import argparse
 import json
@@ -43,6 +44,11 @@ PCW = PANEL_FS * 0.60
 PLH = PANEL_FS * 1.02
 PROW = 1.45         # row pitch, in line heights
 
+# Greyscale throws away the hue that separated skin, hair and collar, so a
+# straight luminance render sits in a narrow band of mid-greys and the face
+# flattens. Pivoting contrast about the midpoint puts that range back.
+MONO_CONTRAST = 1.6
+
 
 def fetch_stats(user):
     """Live GitHub numbers; blanks if offline."""
@@ -70,7 +76,7 @@ def uptime(since):
     return "%d years, %d months" % (y, m)
 
 
-def ascii_art(path, crop, cols, tone, invert, gamma):
+def ascii_art(path, crop, cols, tone, invert, gamma, mono=False):
     im = Image.open(path)
     im = im.convert("RGBA") if im.mode in ("RGBA", "LA", "P") else im.convert("RGB")
     has_alpha = im.mode == "RGBA"
@@ -86,7 +92,7 @@ def ascii_art(path, crop, cols, tone, invert, gamma):
         im = im.crop((int(l * W), int(t * H), int(r * W), int(b * H)))
     if has_alpha:
         rgb = ImageEnhance.Contrast(im.convert("RGB")).enhance(1.25)
-        rgb = ImageEnhance.Color(rgb).enhance(1.5)
+        rgb = ImageEnhance.Color(rgb).enhance(1.0 if mono else 1.5)
         rgb.putalpha(im.getchannel("A"))
         im = rgb
     else:
@@ -139,9 +145,14 @@ def ascii_art(path, crop, cols, tone, invert, gamma):
             # into the background.
             t0, t1 = tone
             target = t0 + t1 * v
-            peak = max(r_, g_, b_, 1)
-            col = "#%02x%02x%02x" % tuple(
-                min(255, int(c * target / peak)) for c in (r_, g_, b_))
+            if mono:
+                vg = min(1.0, max(0.0, (v - 0.5) * MONO_CONTRAST + 0.5))
+                g_out = min(255, max(0, int(t0 + t1 * vg)))
+                col = "#%02x%02x%02x" % (g_out, g_out, g_out)
+            else:
+                peak = max(r_, g_, b_, 1)
+                col = "#%02x%02x%02x" % tuple(
+                    min(255, int(c * target / peak)) for c in (r_, g_, b_))
             line.append((ch_, col))
         grid.append(line)
     return grid
@@ -238,6 +249,8 @@ def main():
     ap.add_argument("--gamma", type=float, default=1.0,
                     help="above 1 pushes midtones down, so a dark suit or dark "
                          "hair recedes instead of rendering as a solid block")
+    ap.add_argument("--mono", action="store_true",
+                    help="render the portrait in greyscale instead of colour")
     ap.add_argument("--stats", action="store_true",
                     help="append live Repos/Stars/Followers rows")
     ap.add_argument("--themes", default="dark",
@@ -289,7 +302,8 @@ def main():
     ASSETS.mkdir(exist_ok=True)
     for name in [t.strip() for t in a.themes.split(",")]:
         th = THEMES[name]
-        grid = ascii_art(a.photo, crop, a.cols, th["tone"], th["invert"], a.gamma)
+        grid = ascii_art(a.photo, crop, a.cols, th["tone"], th["invert"],
+                         a.gamma, a.mono)
         p = ASSETS / ("profile-%s.svg" % name)
         p.write_text(build(grid, lines, th, panel_chars), encoding="utf-8")
         print("  wrote %s" % p.relative_to(ROOT))

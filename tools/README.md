@@ -9,7 +9,7 @@ but it does render SVG images.
 # 1. cut the background out once (local, offline after the first model download)
 python tools/cutout.py assets/photo.jpg            # -> assets/photo-cutout.png
 # 2. build the card (this is the exact command behind the committed SVG)
-python tools/gen_profile.py assets/photo-cutout.png --crop 0.50,0.10,0.99,0.62 --cols 75
+python tools/gen_profile.py assets/photo-cutout.png --crop 0.50,0.10,0.99,0.62 --cols 75 --mono
 ```
 
 A raw photo works too, but the result is muddy: ASCII density tracks brightness,
@@ -31,6 +31,7 @@ not what you want unless you go find a much higher-contrast portrait.
 | --- | --- | --- |
 | `--crop` | `auto` | `auto` trims a cutout to its own bounding box. For a raw photo pass `L,T,R,B` fractions and tighten until `preview.txt` is mostly face and shoulders. |
 | `--cols N` | `46` | Portrait width in characters. More = finer detail, and (at a fixed `ART_FS`) a wider card. 75 is what the committed crop needs; at 64 the face visibly mushes. |
+| `--mono` | off | Greyscale portrait. Hue was carrying much of the separation between skin, hair and collar, so mono also applies `MONO_CONTRAST` to widen the grey range; without it the face flattens into mid-greys. |
 | `--gamma N` | `1.0` | Above 1 pushes midtones down, so a dark suit recedes instead of rendering as a solid block. It costs face detail fast — 1.2 was already too much here. |
 | `--themes` | `dark` | Comma list of `dark` / `light`. |
 | `--birth YYYY-MM-DD` | `2005-02-01` | Feeds the `Uptime:` line. |
