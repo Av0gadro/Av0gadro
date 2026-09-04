@@ -9,7 +9,7 @@ but it does render SVG images.
 # 1. cut the background out once (local, offline after the first model download)
 python tools/cutout.py assets/photo.jpg            # -> assets/photo-cutout.png
 # 2. build the card (this is the exact command behind the committed SVG)
-python tools/gen_profile.py assets/photo-cutout.png --crop 0.50,0.10,0.99,0.62 --cols 75 --mono
+python tools/gen_profile.py assets/photo-cutout.png --crop 0.50,0.10,0.99,0.62 --cols 75
 ```
 
 A raw photo works too, but the result is muddy: ASCII density tracks brightness,
